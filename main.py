@@ -6,10 +6,10 @@ from random import randint
 from DrawGrams import draw_mpc, draw_mpl
   
 SCREEN_W, SCREEN_H = 500, 500
-cells = 10
+cells = 20
 
-BLOCK_SIZE_W = int(SCREEN_W/cells)
-BLOCK_SIZE_H = int(SCREEN_H/cells)
+BLOCK_SIZE_W = round(SCREEN_W/cells)
+BLOCK_SIZE_H = round(SCREEN_H/cells)
 
 
 map_state = set()
@@ -141,7 +141,7 @@ def iterate():
     glViewport(0, 0, SCREEN_W, SCREEN_H)  
     glMatrixMode(GL_PROJECTION)  
     glLoadIdentity()  
-    glOrtho(0.0, SCREEN_W+cells/10, 0.0, SCREEN_H+cells/10, 0.0, 1.0)  
+    glOrtho(0.0, BLOCK_SIZE_H*cells+1, 0.0, BLOCK_SIZE_H*cells+1, 0.0, 1.0)  
     glMatrixMode (GL_MODELVIEW)  
     glLoadIdentity()  
   
