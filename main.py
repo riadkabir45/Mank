@@ -11,8 +11,10 @@ cells = 10
 BLOCK_SIZE_W = int(SCREEN_W/cells)
 BLOCK_SIZE_H = int(SCREEN_H/cells)
 
-map_state = []
+
+map_state = set()
 node_paths = []
+
 
 def draw_array(aPoint):
     glPointSize(1)
@@ -64,11 +66,8 @@ def fill_rectangle(x1,y1,x2,y2):
 def initMap():
     for y in range(cells):
         for x in range(cells):
-                map_state.extend(mage_cell(x,y))
+                map_state.update(mage_cell(x,y))
     
-    cMap = map_state[:]
-    map_state.clear()
-    map_state.extend(sorted(list(set(cMap))))
     
     paths = generateMage()
     for path in paths:
