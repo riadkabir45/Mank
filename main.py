@@ -2,11 +2,14 @@ from OpenGL.GL import *
 from OpenGL.GLUT import *  
 from OpenGL.GLU import *
 from random import randint
+from math import sin,pi,cos
 
 from DrawGrams import draw_mpc, draw_mpl
   
-SCREEN_W, SCREEN_H = 500, 500
+SCREEN_W, SCREEN_H = 2*500, 2*500
+DPI = (SCREEN_W//500,SCREEN_H//500)
 cells = 20
+rotation_speed = 5
 
 BLOCK_SIZE_W = round(SCREEN_W/cells)
 BLOCK_SIZE_H = round(SCREEN_H/cells)
@@ -15,6 +18,8 @@ BLOCK_SIZE_H = round(SCREEN_H/cells)
 map_state = set()
 node_paths = []
 
+bullets = []
+entity = []
 
 def draw_array(aPoint):
     glPointSize(1)
@@ -45,12 +50,12 @@ def create_path(x,y,dx,dy):
     elif dy > 0:
         x *= BLOCK_SIZE_W
         y *= BLOCK_SIZE_H
-        nPoints.extend(fill_rectangle(x+1,y+BLOCK_SIZE_H-1,x+BLOCK_SIZE_W-2,y+BLOCK_SIZE_H+1))
+        nPoints.extend(fill_rectangle(x+1,y+BLOCK_SIZE_H-1,x+BLOCK_SIZE_W-1,y+BLOCK_SIZE_H+1))
     elif dy < 0:
         y -= 1
         x *= BLOCK_SIZE_W
         y *= BLOCK_SIZE_H
-        nPoints.extend(fill_rectangle(x+1,y+BLOCK_SIZE_H-1,x+BLOCK_SIZE_W-2,y+BLOCK_SIZE_H+1))
+        nPoints.extend(fill_rectangle(x+1,y+BLOCK_SIZE_H-1,x+BLOCK_SIZE_W-1,y+BLOCK_SIZE_H+1))
     return nPoints
 
     return nPoints
@@ -136,7 +141,186 @@ def draw_rectangle(x1,y1,x2,y2):
     nPoints.extend(draw_mpl(x2,y2,x2,y1))
     nPoints.extend(draw_mpl(x2,y2,x1,y2))
     return nPoints
-  
+
+def translate(points,x,y):
+    for point in points:
+        point[0] += x
+        point[1] += y
+
+def rotate(points,angle):
+    rad = (angle*(2*pi/360))
+    for point in points:
+        x, y, g = point
+        point[0] = x*cos(rad) - y*sin(rad)
+        point[1] = x*sin(rad) + y*cos(rad)
+    #print(sin(angle*(2*pi/360)))
+
+def mutate(points):
+    for i in range(len(points)):
+        points[i] = list(points[i])
+
+class GameObject:
+    def transform(self,points):
+        x, y = self.x, self.y
+        mutate(points)
+        translate(points,-x,-y)
+        rotate(points,self.angle)
+        translate(points,x,y)
+    
+    def corners(self):
+        x, y, w, h = self.x, self.y, self.w, self.h
+        return ((x-w//2,y-h//2),(x-w//2,y+h//2),(x+w//2,y-h//2),(x+w//2,y+h//2),)
+    
+    def check_collision(self):
+        for  ob in entity:
+            for corn in ob.corners():
+                mcorn = self.corners()
+                if mcorn[0] <= corn <= mcorn[3]:
+                    return ob
+
+    def move(self,d,speed = rotation_speed):
+        x, y, w, h = self.x, self.y, self.w, self.h
+        ox, oy = x, y
+        tx, ty = x, y
+        rcollision = False
+        dist = 0
+        while dist <= speed:
+            y = oy
+            if d == "w":
+                y += round(dist*sin(self.angle*(2*pi/360)))
+            elif d == "s":
+                y -= round(dist*sin(self.angle*(2*pi/360)))
+            borderPoint = []
+            borderPoint.extend(draw_rectangle(x-w//2,y-h//2,x+w//2,y+h//2))
+            borderPoint.extend(draw_rectangle(x-w//6,y-h//6,x+w*4//5,y+h//6))
+            collision = False
+            for point in borderPoint:
+                if point in map_state:
+                    collision = not collision
+                    rcollision = True
+                    break
+            if collision:
+                break
+            dist += 1
+            ty = y
+
+        dist = 0
+        while dist <= speed:
+            x = ox
+            if d == "w":
+                x += round(dist*cos(self.angle*(2*pi/360)))
+            elif d == "s":
+                x -= round(dist*cos(self.angle*(2*pi/360)))
+            borderPoint = []
+            borderPoint.extend(draw_rectangle(x-w//2,y-h//2,x+w//2,y+h//2))
+            borderPoint.extend(draw_rectangle(x-w//6,y-h//6,x+w*4//5,y+h//6))
+            collision = False
+            for point in borderPoint:
+                if point in map_state:
+                    collision = not collision
+                    rcollision = True
+                    break
+            if collision:
+                break
+            dist += 1
+            tx = x
+
+        self.x = tx
+        self.y = ty
+        return rcollision
+    
+
+class Bullet(GameObject):
+    def __init__(self,x,y,angle,owner):
+        bullets.append(self)
+        self.x, self.y = x, y
+        self.angle = angle
+        self.w = 5*DPI[0]
+        self.h = 2*DPI[0]
+        self.owner = owner
+    
+    def move(self):
+        x, y = self.x, self.y
+        state = super().move('w')
+        return state
+
+    
+    def draw(self):
+        x, y, w, h = self.x, self.y, self.w, self.h
+        borderPoint = []
+        bodyPoint = []
+        rgb(153, 77, 55)
+        bodyPoint.extend(fill_rectangle(x-w//2,y-h//2,x+w//2,y+h//2))
+
+        self.transform(bodyPoint)
+
+        draw_array(bodyPoint)
+
+        rgb(255, 255, 255)
+        borderPoint.extend(draw_rectangle(x-w//2,y-h//2,x+w//2,y+h//2))
+
+        self.transform(borderPoint)
+
+        draw_array(borderPoint)
+    
+    def destroy(self):
+        bullets.remove(self)
+
+class Tank(GameObject):
+    def __init__(self,x,y,w=10,h=10):
+        self.w,self.h = 10*DPI[0],10*DPI[1]
+        self.x, self.y = x, y
+        self.angle = 90
+        entity.append(self)
+
+    def fire(self):
+        Bullet(self.x,self.y,self.angle,self)
+    
+    def draw(self):
+        x, y, w, h = self.x, self.y, self.w, self.h
+        borderPoint = []
+        bodyPoint = []
+        rgb(153, 77, 55)
+        bodyPoint.extend(fill_rectangle(x-w//2,y-h//2,x+w//2,y+h//2))
+        bodyPoint.extend(fill_rectangle(x-w//6,y-h//6,x+w*4//5,y+h//6))
+
+        self.transform(bodyPoint)
+
+        draw_array(bodyPoint)
+
+        rgb(255, 255, 255)
+        borderPoint.extend(draw_rectangle(x-w//2,y-h//2,x+w//2,y+h//2))
+        borderPoint.extend(draw_rectangle(x-w//6,y-h//6,x+w*4//5,y+h//6))
+
+        self.transform(borderPoint)
+
+        draw_array(borderPoint)
+
+    def destroy(self):
+        entity.remove(self)
+
+
+userTank = Tank(BLOCK_SIZE_W//2,BLOCK_SIZE_H//2)
+
+def keyboardListener(key, x, y):
+    global ship_x
+    if key == b'a':
+        userTank.angle += rotation_speed
+        if userTank.angle >= 360:
+            userTank.angle = 0
+   
+    if key == b'd':
+        userTank.angle -= rotation_speed
+        if userTank.angle < 0:
+            userTank.angle = 359
+    if key == b'w':
+        userTank.move('w')
+    if key == b's':
+        userTank.move('s')
+
+    if key == b' ':
+        userTank.fire()
+
 def iterate():  
     glViewport(0, 0, SCREEN_W, SCREEN_H)  
     glMatrixMode(GL_PROJECTION)  
@@ -150,17 +334,35 @@ def showScreen():
     glLoadIdentity()  
     iterate() 
 
+    # Draw Map
     rgb(255,255,255)
     draw_array(map_state)
+
+    # User Tank
+    for ob in entity:
+        ob.draw()
+
+    for bullet in bullets:
+        bullet.draw()
     
 
     glutSwapBuffers()  
     glutPostRedisplay()
 
 def animate():
-    pass
+    for bullet in bullets[:]:
+        state = bullet.move()
+        collision = bullet.check_collision()
+        if collision != bullet.owner and collision is not None:
+            bullet.destroy()
+            collision.destroy()
+            continue
+        if state:
+            bullet.destroy()
 
 initMap()
+
+Tank(BLOCK_SIZE_W+BLOCK_SIZE_W//2,BLOCK_SIZE_H+BLOCK_SIZE_H//2)
 
 glutInit()  
 glutInitDisplayMode(GLUT_RGBA)  
@@ -168,7 +370,8 @@ glutInitWindowSize(SCREEN_W, SCREEN_H)
 glutInitWindowPosition(0, 0)  
 wind = glutCreateWindow("Mank")  
 glutDisplayFunc(showScreen)  
-glutIdleFunc(animate)  
+glutIdleFunc(animate)
+glutKeyboardFunc(keyboardListener)
 glutMainLoop()  
 #generateMage()
 #print(ranDir())

@@ -106,7 +106,7 @@ def draw_mpl_z0(x1,y1,x2,y2):
     y = y1
 
     points.append((x,y))
-    while(x <= x2):
+    while(x < x2):
         if d <= 0:
             x += 1
             d += dE
