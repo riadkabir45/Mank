@@ -2,10 +2,11 @@ from OpenGL.GL import *
 from OpenGL.GLUT import *  
 from OpenGL.GLU import *
 from random import randint
-from math import sin,pi,cos
+from math import sin,pi,cos,sqrt,atan2,degrees,radians
 
 from DrawGrams import draw_mpc, draw_mpl
-  
+from angler import differ as angDir
+
 SCREEN_W, SCREEN_H = 2*500, 2*500
 DPI = (SCREEN_W//500,SCREEN_H//500)
 cells = 20
@@ -155,6 +156,9 @@ def rotate(points,angle):
         point[1] = x*sin(rad) + y*cos(rad)
     #print(sin(angle*(2*pi/360)))
 
+def mid_point(x,y):
+    return (BLOCK_SIZE_W*(x)+BLOCK_SIZE_W//2,BLOCK_SIZE_H*(y)+BLOCK_SIZE_H//2)
+
 def mutate(points):
     for i in range(len(points)):
         points[i] = list(points[i])
@@ -175,10 +179,25 @@ class GameObject:
         for  ob in entity:
             for corn in ob.corners():
                 mcorn = self.corners()
-                if mcorn[0] <= corn <= mcorn[3]:
-                    return ob
+                x1, y1 = mcorn[0]
+                x2, y2 = mcorn[3]
+                if x1 <= corn[0] <= x2 and y1 <= corn[1] <= y2:
+                    if ob != self.owner:
+                        print(mcorn,corn)
+                        return ob
 
     def move(self,d,speed = rotation_speed):
+        if d == 'a':
+            self.angle += speed
+            if self.angle >= 360:
+                self.angle = 0
+            return False
+
+        if d == 'd':
+            self.angle -= speed
+            if self.angle < 0:
+                self.angle = 359
+            return False
         x, y, w, h = self.x, self.y, self.w, self.h
         ox, oy = x, y
         tx, ty = x, y
@@ -271,6 +290,7 @@ class Tank(GameObject):
         self.w,self.h = 10*DPI[0],10*DPI[1]
         self.x, self.y = x, y
         self.angle = 90
+        self.target = None
         entity.append(self)
 
     def fire(self):
@@ -280,24 +300,104 @@ class Tank(GameObject):
         x, y, w, h = self.x, self.y, self.w, self.h
         borderPoint = []
         bodyPoint = []
+        
         rgb(153, 77, 55)
         bodyPoint.extend(fill_rectangle(x-w//2,y-h//2,x+w//2,y+h//2))
-        bodyPoint.extend(fill_rectangle(x-w//6,y-h//6,x+w*4//5,y+h//6))
-
         self.transform(bodyPoint)
-
         draw_array(bodyPoint)
 
         rgb(255, 255, 255)
         borderPoint.extend(draw_rectangle(x-w//2,y-h//2,x+w//2,y+h//2))
-        borderPoint.extend(draw_rectangle(x-w//6,y-h//6,x+w*4//5,y+h//6))
-
         self.transform(borderPoint)
-
         draw_array(borderPoint)
+
+        bodyPoint.clear()
+        borderPoint.clear()
+
+        rgb(223, 203, 126)
+        bodyPoint.extend(fill_rectangle(x-w//6,y-h//6,x+w*4//5,y+h//6))
+        self.transform(bodyPoint)
+        draw_array(bodyPoint)
+
+        borderPoint.extend(draw_rectangle(x-w//6,y-h//6,x+w*4//5,y+h//6))
+        self.transform(borderPoint)
+        draw_array(borderPoint)
+    
+    def block_coord(self):
+        x, y, w, h = self.x, self.y, self.w, self.h
+        return (x//BLOCK_SIZE_W,y//BLOCK_SIZE_H)
+    
+    def ai(self,ob,pspeed = rotation_speed):
+        mcord = self.block_coord()
+        dcord = ob.block_coord()
+        if self.target is None:
+            paths = find_path_with_paths(node_paths,mcord,dcord)
+            self.target = paths[1]
+        
+        tg = self.target
+
+        dx = mcord[0] - tg[0]
+        dy = mcord[1] - tg[1]
+        np = mid_point(tg[0],tg[1])
+        if np == (self.x, self.y):
+            self.target = None
+        dx = self.x - np[0]
+        dy = self.y - np[1]
+        
+        ang = degrees(atan2(-dy,-dx))
+        if ang < 0:
+            ang += 360
+        dist = sqrt((np[0]-self.x)**2+(np[1]-self.y)**2)
+
+        speed = min(pspeed,dist)
+        angDiff = min(pspeed,abs(ang-self.angle))
+        
+        if  angDiff == 0:
+            self.move('w',speed)
+        
+        else:
+            res = angDir(self.angle,ang)
+            if res == 'cw':
+                self.move('a',angDiff)
+            else:
+                self.move('d',angDiff)
+            
 
     def destroy(self):
         entity.remove(self)
+
+from collections import deque
+
+def find_path_with_paths(paths, start, end):
+
+  graph = {}
+  for path in paths:
+    p1, p2 = path
+    if p1 not in graph:
+      graph[p1] = set()
+    if p2 not in graph:
+      graph[p2] = set()
+    graph[p1].add(p2)
+    graph[p2].add(p1)
+
+  visited = set()
+  queue = deque([(start, [])])
+
+  while queue:
+    (current, path) = queue.popleft()
+
+    if current == end:
+      return path + [current]
+
+    if current in visited:
+      continue
+
+    visited.add(current)
+
+    for neighbor in graph.get(current, []):
+      queue.append((neighbor, path + [current]))
+
+  return None
 
 
 userTank = Tank(BLOCK_SIZE_W//2,BLOCK_SIZE_H//2)
@@ -354,15 +454,25 @@ def animate():
         state = bullet.move()
         collision = bullet.check_collision()
         if collision != bullet.owner and collision is not None:
+            print(f"{collision.block_coord()} was hit by {bullet.owner.block_coord()}")
             bullet.destroy()
             collision.destroy()
             continue
         if state:
             bullet.destroy()
+    for ob in entity[1:]:
+        if randint(0,20) == 0:
+            ob.fire()
+        else:
+            ob.ai(entity[0],rotation_speed/2)
 
 initMap()
 
-Tank(BLOCK_SIZE_W+BLOCK_SIZE_W//2,BLOCK_SIZE_H+BLOCK_SIZE_H//2)
+pos = [(cells-1,cells-1),(cells-1,0),(0,cells-1)]
+
+for p in pos:
+    np = mid_point(p[0],p[1])
+    Tank(np[0],np[1])
 
 glutInit()  
 glutInitDisplayMode(GLUT_RGBA)  
