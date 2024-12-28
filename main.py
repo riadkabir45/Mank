@@ -303,7 +303,6 @@ class Tank(GameObject):
         Bullet(self.x,self.y,self.angle,self)
         
     def move(self,d,speed = rotation_speed):
-        print(d,speed,self.velocity)
         if d == 'q':
             super().move('w',speed)
         elif d == 'e':
@@ -361,13 +360,19 @@ class Tank(GameObject):
         dcord = ob.block_coord()
         if self.target is None:
             paths = find_path(node_paths,mcord,dcord)
-            self.target = paths[1]
+            if len(paths) > 2:
+                self.target = paths[1]
         
         tg = self.target
-
-        dx = mcord[0] - tg[0]
-        dy = mcord[1] - tg[1]
-        np = mid_point(tg[0],tg[1])
+        
+        if tg is not None:
+            dx = mcord[0] - tg[0]
+            dy = mcord[1] - tg[1]
+            np = mid_point(tg[0],tg[1])
+        else:
+            np = (ob.x,ob.y)
+        
+        
         if np == (self.x, self.y):
             self.target = None
         dx = self.x - np[0]
@@ -390,7 +395,16 @@ class Tank(GameObject):
                 self.move('a',angDiff)
             else:
                 self.move('d',angDiff)
-            
+    def check_collision(self):
+        for  ob in entity:
+            if ob != self:
+                for corn in self.corners():
+                    mcorn = ob.corners()
+                    x1, y1 = mcorn[0]
+                    x2, y2 = mcorn[3]
+                    if x1 <= corn[0] <= x2 and y1 <= corn[1] <= y2:
+                        return ob
+
 
     def destroy(self):
         entity.remove(self)
@@ -434,10 +448,10 @@ userTank = Tank(BLOCK_SIZE_W//2,BLOCK_SIZE_H//2)
 def keyboardListener(key, x, y):
     global ship_x
     if key == b'a':
-        userTank.move('a')
+        userTank.move('a',rotation_speed/2)
    
     if key == b'd':
-        userTank.move('d')
+        userTank.move('d',rotation_speed/2)
     if key == b'w':
         userTank.move('w')
     if key == b's':
@@ -498,7 +512,11 @@ def animate():
         if state:
             bullet.destroy()
     for ob in entity[1:]:
-        if randint(0,20) == 0:
+        target = ob.check_collision()
+        if target is not None:
+            ob.destroy()
+            target.destroy()
+        if randint(0,100) == 0:
             ob.fire()
         else:
             ob.ai(entity[0],rotation_speed/2)
