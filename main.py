@@ -9,8 +9,9 @@ from angler import differ as angDir
 
 SCREEN_W, SCREEN_H = 2*500, 2*500
 DPI = (SCREEN_W//500,SCREEN_H//500)
-cells = 20
+cells = 10
 rotation_speed = 5
+score = 0
 
 BLOCK_SIZE_W = round(SCREEN_W/cells)
 BLOCK_SIZE_H = round(SCREEN_H/cells)
@@ -21,6 +22,8 @@ node_paths = []
 
 bullets = []
 entity = []
+
+pos = [(cells-1,cells-1),(cells-1,0),(0,cells-1)]
 
 def draw_array(aPoint):
     glPointSize(1)
@@ -154,7 +157,6 @@ def rotate(points,angle):
         x, y, g = point
         point[0] = x*cos(rad) - y*sin(rad)
         point[1] = x*sin(rad) + y*cos(rad)
-    #print(sin(angle*(2*pi/360)))
 
 def mid_point(x,y):
     return (BLOCK_SIZE_W*(x)+BLOCK_SIZE_W//2,BLOCK_SIZE_H*(y)+BLOCK_SIZE_H//2)
@@ -178,7 +180,6 @@ class GameObject:
     def check_collision(self):
         for  ob in entity:
             if ob != self.owner:
-                print(ob.corners(),ob,self.corners(),self)
                 for corn in self.corners():
                     mcorn = ob.corners()
                     x1, y1 = mcorn[0]
@@ -254,8 +255,8 @@ class Bullet(GameObject):
         bullets.append(self)
         self.x, self.y = x, y
         self.angle = angle
-        self.w = 5*DPI[0]
-        self.h = 2*DPI[0]
+        self.w = round(BLOCK_SIZE_W*DPI[0]*0.1)
+        self.h = round(BLOCK_SIZE_H*DPI[0]*0.05)
         self.owner = owner
     
     def move(self):
@@ -287,7 +288,7 @@ class Bullet(GameObject):
 
 class Tank(GameObject):
     def __init__(self,x,y,w=10,h=10):
-        self.w,self.h = 10*DPI[0],10*DPI[1]
+        self.w,self.h = (BLOCK_SIZE_W*DPI[0]*0.2) ,round(BLOCK_SIZE_H*DPI[1]*0.2)
         self.x, self.y = x, y
         self.angle = 90
         self.target = None
@@ -331,7 +332,7 @@ class Tank(GameObject):
         mcord = self.block_coord()
         dcord = ob.block_coord()
         if self.target is None:
-            paths = find_path_with_paths(node_paths,mcord,dcord)
+            paths = find_path(node_paths,mcord,dcord)
             self.target = paths[1]
         
         tg = self.target
@@ -368,7 +369,7 @@ class Tank(GameObject):
 
 from collections import deque
 
-def find_path_with_paths(paths, start, end):
+def find_path(paths, start, end):
 
   graph = {}
   for path in paths:
@@ -384,7 +385,7 @@ def find_path_with_paths(paths, start, end):
   queue = deque([(start, [])])
 
   while queue:
-    (current, path) = queue.popleft()
+    current, path = queue.popleft()
 
     if current == end:
       return path + [current]
@@ -405,14 +406,10 @@ userTank = Tank(BLOCK_SIZE_W//2,BLOCK_SIZE_H//2)
 def keyboardListener(key, x, y):
     global ship_x
     if key == b'a':
-        userTank.angle += rotation_speed
-        if userTank.angle >= 360:
-            userTank.angle = 0
+        userTank.move('a')
    
     if key == b'd':
-        userTank.angle -= rotation_speed
-        if userTank.angle < 0:
-            userTank.angle = 359
+        userTank.move('d')
     if key == b'w':
         userTank.move('w')
     if key == b's':
@@ -439,24 +436,35 @@ def showScreen():
     draw_array(map_state)
 
     # User Tank
-    for ob in entity:
-        ob.draw()
-
     for bullet in bullets:
         bullet.draw()
+
+    for ob in entity:
+        ob.draw()
     
 
     glutSwapBuffers()  
     glutPostRedisplay()
 
 def animate():
+    global score
+    if len(entity) < 4:
+        p = pos[randint(0,2)]
+        np = mid_point(p[0],p[1])
+        Tank(np[0],np[1])
+        
+    if userTank != entity[0]:
+        print(f"Game over! You scored {score}!!")
+        glutLeaveMainLoop()
     for bullet in bullets[:]:
         state = bullet.move()
         collision = bullet.check_collision()
         if collision != bullet.owner and collision is not None:
-            print(f"{collision.block_coord()} was hit by {bullet.owner.block_coord()}")
             bullet.destroy()
             collision.destroy()
+            if bullet.owner == userTank:
+                score += 1
+                print("Scored!!")
             continue
         if state:
             bullet.destroy()
@@ -467,8 +475,6 @@ def animate():
             ob.ai(entity[0],rotation_speed/2)
 
 initMap()
-
-pos = [(cells-1,cells-1),(cells-1,0),(0,cells-1)]
 
 for p in pos:
     np = mid_point(p[0],p[1])
@@ -483,5 +489,3 @@ glutDisplayFunc(showScreen)
 glutIdleFunc(animate)
 glutKeyboardFunc(keyboardListener)
 glutMainLoop()  
-#generateMage()
-#print(ranDir())
