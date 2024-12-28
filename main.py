@@ -177,13 +177,13 @@ class GameObject:
     
     def check_collision(self):
         for  ob in entity:
-            for corn in ob.corners():
-                mcorn = self.corners()
-                x1, y1 = mcorn[0]
-                x2, y2 = mcorn[3]
-                if x1 <= corn[0] <= x2 and y1 <= corn[1] <= y2:
-                    if ob != self.owner:
-                        print(mcorn,corn)
+            if ob != self.owner:
+                print(ob.corners(),ob,self.corners(),self)
+                for corn in self.corners():
+                    mcorn = ob.corners()
+                    x1, y1 = mcorn[0]
+                    x2, y2 = mcorn[3]
+                    if x1 <= corn[0] <= x2 and y1 <= corn[1] <= y2:
                         return ob
 
     def move(self,d,speed = rotation_speed):
