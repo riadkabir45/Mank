@@ -12,6 +12,7 @@ DPI = (SCREEN_W//500,SCREEN_H//500)
 cells = 10
 rotation_speed = 5
 score = 0
+acceleration = 10
 
 BLOCK_SIZE_W = round(SCREEN_W/cells)
 BLOCK_SIZE_H = round(SCREEN_H/cells)
@@ -291,11 +292,38 @@ class Tank(GameObject):
         self.w,self.h = (BLOCK_SIZE_W*DPI[0]*0.2) ,round(BLOCK_SIZE_H*DPI[1]*0.2)
         self.x, self.y = x, y
         self.angle = 90
+        self.velocity = 0
         self.target = None
         entity.append(self)
+        
+    def stop(self):
+        self.velocity = 0
 
     def fire(self):
         Bullet(self.x,self.y,self.angle,self)
+        
+    def move(self,d,speed = rotation_speed):
+        print(d,speed,self.velocity)
+        if d == 'q':
+            super().move('w',speed)
+        elif d == 'e':
+            super().move('s',speed)
+        elif d == 'w':
+            self.velocity += 1
+        elif d == 's':
+            self.velocity -= 1
+        elif d == 'x':
+            if self.velocity < 0:
+                self.move('e',abs(self.velocity))
+            else:
+                self.move('q',abs(self.velocity))
+        else:
+            super().move(d,speed)
+        if self.velocity > rotation_speed:
+            self.velocity = rotation_speed
+        if self.velocity < -rotation_speed:
+            self.velocity = -rotation_speed
+        
     
     def draw(self):
         x, y, w, h = self.x, self.y, self.w, self.h
@@ -354,7 +382,7 @@ class Tank(GameObject):
         angDiff = min(pspeed,abs(ang-self.angle))
         
         if  angDiff == 0:
-            self.move('w',speed)
+            self.move('q',speed)
         
         else:
             res = angDir(self.angle,ang)
@@ -414,7 +442,8 @@ def keyboardListener(key, x, y):
         userTank.move('w')
     if key == b's':
         userTank.move('s')
-
+    if key == b'x':
+        userTank.stop()
     if key == b' ':
         userTank.fire()
 
@@ -473,6 +502,7 @@ def animate():
             ob.fire()
         else:
             ob.ai(entity[0],rotation_speed/2)
+    userTank.move('x')
 
 initMap()
 
